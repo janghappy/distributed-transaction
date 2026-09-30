@@ -1,0 +1,66 @@
+package com.example.product.application;
+
+import com.example.product.application.dto.ProductReserveCommand;
+import com.example.product.application.dto.ProductReserveResult;
+import com.example.product.domain.Product;
+import com.example.product.domain.ProductReservation;
+import com.example.product.infrastructure.ProductRepository;
+import com.example.product.infrastructure.ProductReservationRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
+
+@SpringBootTest
+class ProductServiceTest {
+
+    @Autowired
+    private ProductFacadeService productFacadeService;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private ProductReservationRepository productReservationRepository;
+
+    private Product product1;
+    private Product product2;
+
+    @BeforeEach
+    void setUp() {
+        productReservationRepository.deleteAllInBatch();
+        productRepository.deleteAllInBatch();
+
+        product1 = productRepository.save(new Product(10L, 100L));
+    }
+
+    @Test
+    void 상품을_예약하면_예약_수량이_증가하고_예약_내역이_저장된다() {
+        // given
+        ProductReserveCommand command = new ProductReserveCommand("request-1", List.of(
+                new ProductReserveCommand.ReserveItem(product1.getId(), 2L)
+        ));
+
+        // when
+        ProductReserveResult result = productFacadeService.tryReserve(command);
+
+        // then
+        assertThat(result.totalPrice()).isEqualTo(200L); // 2개 * 100원 = 200원
+        assertThat(productRepository.findById(product1.getId()).orElseThrow().getReservedQuantity()).isEqualTo(2L); // 예약수량 2
+
+        List<ProductReservation> reservations = productReservationRepository.findAllByRequestId("request-1");
+        assertThat(reservations).hasSize(1); // 예약 사이즈 1
+        assertThat(reservations)
+                .extracting(ProductReservation::getProductId, ProductReservation::getReservedQuantity, ProductReservation::getReservedPrice)
+                .containsExactlyInAnyOrder(
+                        tuple(product1.getId(), 2L, 200L)
+                );
+        assertThat(reservations)
+                .allMatch(reservation -> reservation.getStatus() == ProductReservation.ProductReservationStatus.RESERVED);
+    }
+}

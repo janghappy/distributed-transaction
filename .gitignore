@@ -38,3 +38,5 @@ out/
 
 ### Local config ###
 application.yaml
+CLAUDE.md
+/.claude/skills/cc-comment/SKILL.md

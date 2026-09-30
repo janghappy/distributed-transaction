@@ -18,10 +18,26 @@ public class Product {
 
     private Long quantity;
     private Long price;
+    private Long reservedQuantity;
+    @Version
+    private Long version;
 
-    public Product(Long price, Long quantity) {
-        this.price = price;
+    public Product(Long quantity, Long price) {
         this.quantity = quantity;
+        this.price = price;
+        this.reservedQuantity = 0L;
+    }
+
+    public Long reserve(Long requestedQuantity) {
+        long reservableQuantity = this.quantity - this.reservedQuantity;
+
+        if(reservableQuantity < requestedQuantity) {
+            throw new RuntimeException("예약할 수 있는 수량이 부족합니다.");
+        }
+
+        reservedQuantity += requestedQuantity;
+
+        return this.price * requestedQuantity;
     }
 
     public Long calculatePrice(Long quantity) {
