@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
-@NoArgsConstructor
 @Entity
 @Table(name = "orders")
 public class Order {
@@ -14,4 +13,18 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
+
+    public enum OrderStatus {
+        CREATED, COMPLETED
+    }
+
+    public Order() {
+        this.status = OrderStatus.CREATED;
+    }
+
+    public void complete() {
+        this.status = OrderStatus.COMPLETED;
+    }
 }
