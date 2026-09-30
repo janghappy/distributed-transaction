@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 @SpringBootTest
@@ -62,5 +63,22 @@ class ProductServiceTest {
                 );
         assertThat(reservations)
                 .allMatch(reservation -> reservation.getStatus() == ProductReservation.ProductReservationStatus.RESERVED);
+    }
+
+    @Test
+    void 예약_가능한_수량을_초과하면_재시도하지_않고_원래_예외를_던진다() {
+        // given
+        // 상품1 재고 10개
+        ProductReserveCommand command = new ProductReserveCommand("request-1", List.of(
+                new ProductReserveCommand.ReserveItem(product1.getId(), 11L)
+        ));
+
+        // when & then
+        assertThatThrownBy(() -> productFacadeService.tryReserve(command))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("예약할 수 있는 수량이 부족합니다.");
+
+        assertThat(productRepository.findById(product1.getId()).orElseThrow().getReservedQuantity()).isZero();
+        assertThat(productReservationRepository.findAllByRequestId("request-1")).isEmpty();
     }
 }

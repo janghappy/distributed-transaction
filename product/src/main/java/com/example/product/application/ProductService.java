@@ -8,6 +8,7 @@ import com.example.product.domain.ProductReservation;
 import com.example.product.infrastructure.ProductRepository;
 import com.example.product.infrastructure.ProductReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -32,7 +33,8 @@ public class ProductService {
         String key = "product:reserve:" + command.requestId();
 
         if (!redisLockService.tryLock(key, command.requestId())) {
-            throw new RuntimeException("락 획득에 실패하였습니다.");
+            // 동시 요청으로 인한 일시적 실패이므로 재시도 대상 예외(ConcurrencyFailureException 계열)로 던진다.
+            throw new CannotAcquireLockException("락 획득에 실패하였습니다.");
         }
 
         try {

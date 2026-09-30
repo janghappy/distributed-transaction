@@ -35,11 +35,19 @@
 
 ```
 distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그인 버전 관리)
-└── monolithic                 # 모놀리식 주문 시스템
-    └── src/main/java/com/example/monolithic
-        ├── application        # OrderService, ProductService, PointService
-        ├── infrastructure     # JPA Repository
-        └── product/domain     # Order, OrderItem, Product, Point 엔티티
+├── monolithic                 # 모놀리식 주문 시스템
+│   └── src/main/java/com/example/monolithic
+│       ├── application        # OrderService, ProductService, PointService
+│       ├── infrastructure     # JPA Repository
+│       └── product/domain     # Order, OrderItem, Product, Point 엔티티
+├── order                      # 주문 서비스 (MSA)
+├── product                    # 상품 서비스 (MSA, port 8081)
+│   └── src/main/java/com/example/product
+│       ├── application        # ProductFacadeService(재시도), ProductService(예약)
+│       ├── infrastructure     # JPA Repository
+│       ├── domain             # Product, ProductReservation 엔티티
+│       └── RedisLockService   # Redis 락
+└── point                      # 포인트 서비스 (MSA)
 ```
 
 ## 실행 방법
@@ -78,10 +86,12 @@ cp monolithic/src/main/resources/application.yaml.example \
 ### 4. 테스트 실행
 
 ```bash
-./gradlew :monolithic:test
+./gradlew test               # 전체 모듈
+./gradlew :monolithic:test   # 모듈 단위
+./gradlew :product:test
 ```
 
-> 테스트 데이터(포인트, 상품)는 각 테스트 클래스(`OrderServiceTest`, `DuplicateOrderTest`)의 `@BeforeEach`에서 생성한다.
+> 테스트 데이터(포인트, 상품)는 각 테스트 클래스(`OrderServiceTest`, `DuplicateOrderTest`, `ProductServiceTest` 등)의 `@BeforeEach`에서 생성한다.
 
 ## 동일 주문 중복 처리 방지
 
@@ -115,3 +125,22 @@ cp monolithic/src/main/resources/application.yaml.example \
 | 테스트 | 검증 내용 |
 |---|---|
 | `포인트가_부족하면_재고_차감도_롤백된다` | 재고 차감 후 포인트 사용에서 실패 → 재고·포인트·주문 상태가 모두 원래대로 돌아온다. |
+
+## 상품 예약 (`product` 모듈, TCC의 Try 단계)
+
+`ProductFacadeService.tryReserve` → `ProductService.tryReserve` 순서로 호출되며, 실제 재고를 차감하지 않고
+예약 수량(`reservedQuantity`)만 늘린 뒤 예약 내역(`ProductReservation`, 상태 `RESERVED`)을 저장한다.
+
+| 방어 수단 | 막는 상황 | 동작 |
+|---|---|---|
+| Redis 락 (`RedisLockService`) | 같은 `requestId`의 예약이 **동시에** 들어온 경우 | `SET product:reserve:{requestId} NX EX 10`으로 락을 잡은 요청만 처리한다. 모놀리식과 같이 락 획득 → `TransactionTemplate`으로 트랜잭션 실행(커밋) → 락 해제 순서로 처리한다. |
+| 예약 내역 확인 | 처리가 끝난 `requestId`가 **다시** 들어온 경우 | 이미 예약 내역이 있으면 새로 예약하지 않고 기존 예약 금액을 반환한다. (멱등성) |
+| 낙관적 락 (`Product.@Version`) | **서로 다른 요청**이 같은 상품을 동시에 예약하는 경우 | 먼저 커밋한 요청만 반영되고, 나중 요청은 버전 충돌로 실패한다. |
+| 재시도 (`ProductFacadeService`) | 락 획득 실패·버전 충돌로 실패한 경우 | `ConcurrencyFailureException` 계열(락 획득 실패 `CannotAcquireLockException`, 낙관적 락 충돌 `OptimisticLockingFailureException`)만 최대 3회 시도하며, 재시도 전에 1초 대기한다. 모두 실패하면 마지막 예외를 원인으로 담아 `예약에 실패하였습니다.` 예외를 던진다. 수량 부족 등 다시 해도 실패할 예외는 재시도하지 않고 그대로 던진다. |
+
+### 검증 (`ProductServiceTest`)
+
+| 테스트 | 검증 내용 |
+|---|---|
+| `상품을_예약하면_예약_수량이_증가하고_예약_내역이_저장된다` | 예약 금액(수량 × 가격), 상품의 예약 수량, 예약 내역(수량·금액·`RESERVED` 상태)이 저장된다. |
+| `예약_가능한_수량을_초과하면_재시도하지_않고_원래_예외를_던진다` | 수량 부족 예외가 재시도 없이 원래 메시지 그대로 전달되고, 아무것도 예약되지 않는다. |
