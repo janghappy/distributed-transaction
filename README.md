@@ -35,6 +35,11 @@
 
 ```
 distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그인 버전 관리)
+├── common                     # 서비스 공통 라이브러리 (서비스 모듈이 의존)
+│   └── src/main/java/com/example/common
+│       ├── RetryExecutor           # 동시성 실패 재시도 공통 처리
+│       ├── LockTransactionExecutor # Redis 락 + 트랜잭션 공통 처리
+│       └── RedisLockService        # Redis 락
 ├── monolithic                 # 모놀리식 주문 시스템
 │   └── src/main/java/com/example/monolithic
 │       ├── application        # OrderService, ProductService, PointService
@@ -43,10 +48,9 @@ distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그�
 ├── order                      # 주문 서비스 (MSA)
 ├── product                    # 상품 서비스 (MSA, port 8081)
 │   └── src/main/java/com/example/product
-│       ├── application        # ProductFacadeService(재시도), ProductService(예약)
+│       ├── application        # ProductFacadeService(재시도), ProductService(예약·확정·취소)
 │       ├── infrastructure     # JPA Repository
-│       ├── domain             # Product, ProductReservation 엔티티
-│       └── RedisLockService   # Redis 락
+│       └── domain             # Product, ProductReservation 엔티티
 └── point                      # 포인트 서비스 (MSA)
 ```
 
@@ -133,10 +137,10 @@ cp monolithic/src/main/resources/application.yaml.example \
 
 | 방어 수단 | 막는 상황 | 동작 |
 |---|---|---|
-| Redis 락 (`RedisLockService`) | 같은 `requestId`의 예약이 **동시에** 들어온 경우 | `SET product:reserve:{requestId} NX EX 10`으로 락을 잡은 요청만 처리한다. 모놀리식과 같이 락 획득 → `TransactionTemplate`으로 트랜잭션 실행(커밋) → 락 해제 순서로 처리한다. |
+| Redis 락 (`LockTransactionExecutor`) | 같은 `requestId`의 예약이 **동시에** 들어온 경우 | `SET product:reserve:{requestId} NX EX 10`으로 락을 잡은 요청만 처리한다. 모놀리식과 같이 락 획득 → `TransactionTemplate`으로 트랜잭션 실행(커밋) → 락 해제 순서로 처리한다. 확정·취소도 같은 방식으로 각각 `product:confirm:{requestId}`, `product:cancel:{requestId}` 키를 쓴다. |
 | 예약 내역 확인 | 처리가 끝난 `requestId`가 **다시** 들어온 경우 | 이미 예약 내역이 있으면 새로 예약하지 않고 기존 예약 금액을 반환한다. (멱등성) |
 | 낙관적 락 (`Product.@Version`) | **서로 다른 요청**이 같은 상품을 동시에 예약하는 경우 | 먼저 커밋한 요청만 반영되고, 나중 요청은 버전 충돌로 실패한다. |
-| 재시도 (`ProductFacadeService`) | 락 획득 실패·버전 충돌로 실패한 경우 | `ConcurrencyFailureException` 계열(락 획득 실패 `CannotAcquireLockException`, 낙관적 락 충돌 `OptimisticLockingFailureException`)만 최대 3회 시도하며, 재시도 전에 1초 대기한다. 모두 실패하면 마지막 예외를 원인으로 담아 `예약에 실패하였습니다.` 예외를 던진다. 수량 부족 등 다시 해도 실패할 예외는 재시도하지 않고 그대로 던진다. |
+| 재시도 (`RetryExecutor`) | 락 획득 실패·버전 충돌로 실패한 경우 | `ConcurrencyFailureException` 계열(락 획득 실패 `CannotAcquireLockException`, 낙관적 락 충돌 `OptimisticLockingFailureException`)만 최대 3회 시도하며, 재시도 전에 1초 대기한다. 모두 실패하면 마지막 예외를 원인으로 담아 작업별 실패 메시지(`예약에 실패하였습니다.`, `예약 확정에 실패하였습니다.`, `예약 취소에 실패하였습니다.`) 예외를 던진다. 수량 부족 등 다시 해도 실패할 예외는 재시도하지 않고 그대로 던진다. |
 
 ### 검증 (`ProductServiceTest`)
 

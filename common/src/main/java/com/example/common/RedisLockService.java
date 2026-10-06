@@ -1,4 +1,4 @@
-package com.example.product;
+package com.example.common;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -11,7 +11,7 @@ import java.time.Duration;
 public class RedisLockService {
 
     // 락을 잡은 서버가 해제 전에 죽어도 락이 영구히 남지 않도록 만료 시간을 둔다.
-    // 예약 처리 시간보다 충분히 길어야, 처리 도중 만료되어 다른 요청이 락을 잡는 일이 없다.
+    // 처리 시간보다 충분히 길어야, 처리 도중 만료되어 다른 요청이 락을 잡는 일이 없다.
     private static final Duration LOCK_TTL = Duration.ofSeconds(10);
 
     private final StringRedisTemplate stringRedisTemplate;
