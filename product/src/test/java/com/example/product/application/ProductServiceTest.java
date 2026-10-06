@@ -1,6 +1,7 @@
 package com.example.product.application;
 
 import com.example.product.application.dto.ProductReserveCommand;
+import com.example.product.application.dto.ProductReserveConfirmCommand;
 import com.example.product.application.dto.ProductReserveResult;
 import com.example.product.domain.Product;
 import com.example.product.domain.ProductReservation;
@@ -37,7 +38,7 @@ class ProductServiceTest {
         productReservationRepository.deleteAllInBatch();
         productRepository.deleteAllInBatch();
 
-        product1 = productRepository.save(new Product(10L, 100L));
+        product1 = productRepository.save(new Product(100L, 100L));
     }
 
     @Test
@@ -68,9 +69,9 @@ class ProductServiceTest {
     @Test
     void 예약_가능한_수량을_초과하면_재시도하지_않고_원래_예외를_던진다() {
         // given
-        // 상품1 재고 10개
+        // 상품1 재고 100개
         ProductReserveCommand command = new ProductReserveCommand("request-1", List.of(
-                new ProductReserveCommand.ReserveItem(product1.getId(), 11L)
+                new ProductReserveCommand.ReserveItem(product1.getId(), 101L)
         ));
 
         // when & then
@@ -80,5 +81,28 @@ class ProductServiceTest {
 
         assertThat(productRepository.findById(product1.getId()).orElseThrow().getReservedQuantity()).isZero();
         assertThat(productReservationRepository.findAllByRequestId("request-1")).isEmpty();
+    }
+
+    @Test
+    void 예약을_확정하면_재고와_예약_수량이_차감되고_예약_상태가_CONFIRMED가_된다() {
+        // given
+        // 상품1 재고 10개 중 2개 예약
+        ProductReserveCommand reserveCommand = new ProductReserveCommand("request-1", List.of(
+                new ProductReserveCommand.ReserveItem(product1.getId(), 1L)
+        ));
+        productFacadeService.tryReserve(reserveCommand);
+
+        // when
+        ProductReserveConfirmCommand confirmCommand = new ProductReserveConfirmCommand("request-1");
+        productFacadeService.confirmReserve(confirmCommand);
+
+        // then
+        Product product = productRepository.findById(product1.getId()).orElseThrow();
+        assertThat(product.getQuantity()).isEqualTo(99L); // 재고 100 - 1
+        assertThat(product.getReservedQuantity()).isZero(); // 확정된 만큼 예약 수량 해제
+
+        assertThat(productReservationRepository.findAllByRequestId("request-1"))
+                .hasSize(1)
+                .allMatch(reservation -> reservation.getStatus() == ProductReservation.ProductReservationStatus.CONFIRMED);
     }
 }

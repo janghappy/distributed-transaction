@@ -34,4 +34,12 @@ public class ProductReservation {
         this.reservedPrice = reservedPrice;
         this.status = ProductReservationStatus.RESERVED;
     }
+
+    public void confirm(){
+        if(this.status == ProductReservationStatus.CONFIRMED) {
+            throw new RuntimeException("이미 확정된 예약입니다.");
+        }
+
+        this.status = ProductReservationStatus.CONFIRMED;
+    }
 }

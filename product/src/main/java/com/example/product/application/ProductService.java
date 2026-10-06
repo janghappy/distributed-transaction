@@ -2,6 +2,7 @@ package com.example.product.application;
 
 import com.example.product.RedisLockService;
 import com.example.product.application.dto.ProductReserveCommand;
+import com.example.product.application.dto.ProductReserveConfirmCommand;
 import com.example.product.application.dto.ProductReserveResult;
 import com.example.product.domain.Product;
 import com.example.product.domain.ProductReservation;
@@ -71,6 +72,47 @@ public class ProductService {
         }
 
         return new ProductReserveResult(totalPrice);
+    }
+
+    protected void confirmReserve(ProductReserveConfirmCommand command) {
+        String key = "product:confirm:" + command.requestId();
+
+        if (!redisLockService.tryLock(key, command.requestId())) {
+            // 동시 요청으로 인한 일시적 실패이므로 재시도 대상 예외(ConcurrencyFailureException 계열)로 던진다.
+            throw new CannotAcquireLockException("락 획득에 실패하였습니다.");
+        }
+
+        try {
+            transactionTemplate.executeWithoutResult(status -> doConfirmReserve(command));
+        } finally {
+            redisLockService.releaseLock(key);
+        }
+    }
+
+    private void doConfirmReserve(ProductReserveConfirmCommand command) {
+        List<ProductReservation> reservations = productReservationRepository.findAllByRequestId(command.requestId());
+
+        if(reservations.isEmpty()) {
+            throw new RuntimeException("예약된 정보가 없습니다.");
+        }
+
+        boolean alreadyConfirmed = reservations.stream()
+                .anyMatch(item -> item.getStatus() == ProductReservation.ProductReservationStatus.CONFIRMED);
+
+        if(alreadyConfirmed) {
+            System.out.println("이미 확정이 되었습니다.");
+            return;
+        }
+
+        for (ProductReservation reservation : reservations) {
+            Product product = productRepository.findById(reservation.getProductId()).orElseThrow();
+            product.confirm(reservation.getReservedQuantity());
+            reservation.confirm();
+
+            productRepository.save(product);
+            productReservationRepository.save(reservation);
+        }
+
     }
 
 }
