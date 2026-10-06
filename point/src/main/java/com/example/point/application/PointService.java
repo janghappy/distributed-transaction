@@ -1,0 +1,38 @@
+package com.example.point.application;
+
+import com.example.point.application.dto.PointReserveCommand;
+import com.example.point.domain.Point;
+import com.example.point.domain.PointReservation;
+import com.example.point.infrastructure.PointRepository;
+import com.example.point.infrastructure.PointReservationsRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class PointService {
+
+    private final PointRepository pointRepository;
+    private final PointReservationsRepository pointReservationsRepository;
+
+    // 락·트랜잭션은 PointFacadeService에서 감싸므로, Facade를 통해서만 호출되도록 protected로 둔다.
+    protected void tryReserve(PointReserveCommand command){
+        PointReservation reservation = pointReservationsRepository.findByRequestId(command.requestId());
+
+        if(reservation != null){
+            System.out.println("이미 예약된 요청입니다.");
+            return;
+        }
+
+        Point point = pointRepository.findByUserId(command.userId());
+        point.reserve(command.reserveAmount());
+        pointReservationsRepository.save(
+                new PointReservation(
+                        command.requestId(),
+                        point.getId(),
+                        command.reserveAmount()
+                )
+        );
+    }
+
+}

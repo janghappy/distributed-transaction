@@ -16,8 +16,11 @@ public class Product {
     @GeneratedValue(strategy = IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private Long quantity;
+    @Column(nullable = false)
     private Long price;
+    @Column(nullable = false)
     private Long reservedQuantity;
     @Version
     private Long version;
