@@ -1,6 +1,7 @@
 package com.example.point.application;
 
 import com.example.point.application.dto.PointReserveCommand;
+import com.example.point.application.dto.PointReserveConfirmCommand;
 import com.example.point.domain.Point;
 import com.example.point.domain.PointReservation;
 import com.example.point.infrastructure.PointRepository;
@@ -56,5 +57,26 @@ class PointServiceTest {
         assertThat(reservation.getReservedAmount()).isEqualTo(50L);
         assertThat(reservation.getStatus()).isEqualTo(PointReservation.PointReservationStatus.RESERVED);
         assertThat(pointReservationsRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 예약을_확정하면_포인트와_예약_금액이_차감되고_예약_상태가_CONFIRMED가_된다() {
+        // given
+        // 포인트 1,000 중 50 예약
+        pointFacadeService.tryReserve(new PointReserveCommand("request-1", 1L, 50L));
+
+        // when
+        pointFacadeService.confirmReserve(new PointReserveConfirmCommand("request-1"));
+
+        // then
+        // point 테이블: 포인트 50 차감, 확정된 만큼 예약 금액 해제
+        Point confirmed = pointRepository.findByUserId(1L);
+        assertThat(confirmed.getAmount()).isEqualTo(950L);
+        assertThat(confirmed.getReservedAmount()).isZero();
+
+        // point_reservations 테이블: 예약 상태 CONFIRMED
+        PointReservation reservation = pointReservationsRepository.findByRequestId("request-1");
+        assertThat(reservation.getReservedAmount()).isEqualTo(50L);
+        assertThat(reservation.getStatus()).isEqualTo(PointReservation.PointReservationStatus.CONFIRMED);
     }
 }

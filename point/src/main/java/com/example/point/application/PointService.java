@@ -1,6 +1,7 @@
 package com.example.point.application;
 
 import com.example.point.application.dto.PointReserveCommand;
+import com.example.point.application.dto.PointReserveConfirmCommand;
 import com.example.point.domain.Point;
 import com.example.point.domain.PointReservation;
 import com.example.point.infrastructure.PointRepository;
@@ -35,4 +36,24 @@ public class PointService {
         );
     }
 
+    protected void confirmReserve(PointReserveConfirmCommand command) {
+        PointReservation reservation = pointReservationsRepository.findByRequestId(command.requestId());
+
+        if(reservation == null){
+            throw new RuntimeException("예약내역이 없습니다.");
+        }
+
+        if(reservation.getStatus() == PointReservation.PointReservationStatus.CONFIRMED){
+            System.out.println("이미 확정된 예약입니다.");
+            return;
+        }
+
+        Point point = pointRepository.findById(reservation.getPointId()).orElseThrow();
+        point.confirm(reservation.getReservedAmount());
+
+        reservation.confirm();
+
+        pointRepository.save(point);
+        pointReservationsRepository.save(reservation);
+    }
 }
