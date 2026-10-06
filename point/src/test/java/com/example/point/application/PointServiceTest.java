@@ -1,5 +1,6 @@
 package com.example.point.application;
 
+import com.example.point.application.dto.PointReserveCancelCommand;
 import com.example.point.application.dto.PointReserveCommand;
 import com.example.point.application.dto.PointReserveConfirmCommand;
 import com.example.point.domain.Point;
@@ -78,5 +79,31 @@ class PointServiceTest {
         PointReservation reservation = pointReservationsRepository.findByRequestId("request-1");
         assertThat(reservation.getReservedAmount()).isEqualTo(50L);
         assertThat(reservation.getStatus()).isEqualTo(PointReservation.PointReservationStatus.CONFIRMED);
+    }
+
+    @Test
+    void 확정_전에_예약을_취소하면_예약_금액이_원상복구되고_예약_상태가_CANCELLED가_된다() {
+        // given
+        // 포인트 1,000 중 50 예약
+        pointFacadeService.tryReserve(new PointReserveCommand("request-1", 1L, 50L));
+
+        // 취소 전: 포인트는 그대로, 예약 금액만 50 증가
+        Point reserved = pointRepository.findByUserId(1L);
+        assertThat(reserved.getAmount()).isEqualTo(1_000L);
+        assertThat(reserved.getReservedAmount()).isEqualTo(50L);
+
+        // when
+        pointFacadeService.cancelReserve(new PointReserveCancelCommand("request-1"));
+
+        // then
+        // point 테이블: 포인트는 차감되지 않고, 예약 금액 원상복구
+        Point cancelled = pointRepository.findByUserId(1L);
+        assertThat(cancelled.getAmount()).isEqualTo(1_000L);
+        assertThat(cancelled.getReservedAmount()).isZero();
+
+        // point_reservations 테이블: 예약 상태 CANCELLED
+        PointReservation reservation = pointReservationsRepository.findByRequestId("request-1");
+        assertThat(reservation.getReservedAmount()).isEqualTo(50L);
+        assertThat(reservation.getStatus()).isEqualTo(PointReservation.PointReservationStatus.CANCELLED);
     }
 }

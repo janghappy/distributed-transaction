@@ -58,4 +58,11 @@ public class Point {
         this.amount -= reserveAmount;
         this.reservedAmount -= reserveAmount;
     }
+
+    public void cancel(Long reserveAmount) {
+        if(this.reservedAmount < reserveAmount){
+            throw new RuntimeException("예약된 금액이 부족합니다.");
+        }
+        this.reservedAmount -= reserveAmount;
+    }
 }
