@@ -1,5 +1,6 @@
 package com.example.product.application;
 
+import com.example.product.application.dto.ProductReserveCancelCommand;
 import com.example.product.application.dto.ProductReserveCommand;
 import com.example.product.application.dto.ProductReserveConfirmCommand;
 import com.example.product.application.dto.ProductReserveResult;
@@ -61,5 +62,25 @@ public class ProductFacadeService {
         }
 
         throw new RuntimeException("예약 확정에 실패하였습니다.", lastException);
+    }
+
+    public void cancelResolved(ProductReserveCancelCommand command) {
+        int tryCount = 0;
+        RuntimeException lastException = null;
+
+        while (tryCount < MAX_TRY_COUNT) {
+            try {
+                productService.cancelResolved(command);
+                return;
+            } catch (ConcurrencyFailureException e) {
+                // 락 획득 실패·낙관적 락 충돌처럼 잠시 후 다시 하면 성공할 수 있는 경우만 재시도한다.
+                // 예약 내역 없음 등 다시 해도 실패할 예외는 잡지 않고 그대로 던진다.
+                lastException = e;
+                tryCount++;
+                sleep();
+            }
+        }
+
+        throw new RuntimeException("예약 취소에 실패하였습니다.", lastException);
     }
 }

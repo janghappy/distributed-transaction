@@ -1,6 +1,7 @@
 package com.example.product.application;
 
 import com.example.product.RedisLockService;
+import com.example.product.application.dto.ProductReserveCancelCommand;
 import com.example.product.application.dto.ProductReserveCommand;
 import com.example.product.application.dto.ProductReserveConfirmCommand;
 import com.example.product.application.dto.ProductReserveResult;
@@ -48,7 +49,7 @@ public class ProductService {
     private ProductReserveResult doTryReserve(ProductReserveCommand command) {
         List<ProductReservation> exists = productReservationRepository.findAllByRequestId(command.requestId());
 
-        if(!exists.isEmpty()) {
+        if (!exists.isEmpty()) {
             Long totalPrice = exists.stream().mapToLong(ProductReservation::getReservedPrice).sum();
 
             return new ProductReserveResult(totalPrice);
@@ -92,14 +93,14 @@ public class ProductService {
     private void doConfirmReserve(ProductReserveConfirmCommand command) {
         List<ProductReservation> reservations = productReservationRepository.findAllByRequestId(command.requestId());
 
-        if(reservations.isEmpty()) {
+        if (reservations.isEmpty()) {
             throw new RuntimeException("예약된 정보가 없습니다.");
         }
 
         boolean alreadyConfirmed = reservations.stream()
                 .anyMatch(item -> item.getStatus() == ProductReservation.ProductReservationStatus.CONFIRMED);
 
-        if(alreadyConfirmed) {
+        if (alreadyConfirmed) {
             System.out.println("이미 확정이 되었습니다.");
             return;
         }
@@ -113,6 +114,46 @@ public class ProductService {
             productReservationRepository.save(reservation);
         }
 
+    }
+
+    protected void cancelResolved(ProductReserveCancelCommand command) {
+        String key = "product:cancel:" + command.requestId();
+
+        if (!redisLockService.tryLock(key, command.requestId())) {
+            // 동시 요청으로 인한 일시적 실패이므로 재시도 대상 예외(ConcurrencyFailureException 계열)로 던진다.
+            throw new CannotAcquireLockException("락 획득에 실패하였습니다.");
+        }
+
+        try {
+            transactionTemplate.executeWithoutResult(status -> doCancelResolved(command));
+        } finally {
+            redisLockService.releaseLock(key);
+        }
+    }
+
+    private void doCancelResolved(ProductReserveCancelCommand command) {
+        List<ProductReservation> reservations = productReservationRepository.findAllByRequestId(command.requestId());
+
+        if (reservations.isEmpty()) {
+            throw new RuntimeException("예약된 정보가 존재하지 않습니다.");
+        }
+
+        boolean alreadyCancelled = reservations.stream()
+                .anyMatch(item -> item.getStatus() == ProductReservation.ProductReservationStatus.CANCELED);
+
+        if(alreadyCancelled){
+            System.out.println("이미 취소된 요청입니다.");
+            return;
+        }
+
+        for (ProductReservation reservation : reservations) {
+            Product product = productRepository.findById(reservation.getProductId()).orElseThrow();
+            product.cancel(reservation.getReservedQuantity());
+            reservation.cancel();
+
+            productRepository.save(product);
+            productReservationRepository.save(reservation);
+        }
     }
 
 }

@@ -1,5 +1,6 @@
 package com.example.product.application;
 
+import com.example.product.application.dto.ProductReserveCancelCommand;
 import com.example.product.application.dto.ProductReserveCommand;
 import com.example.product.application.dto.ProductReserveConfirmCommand;
 import com.example.product.application.dto.ProductReserveResult;
@@ -86,7 +87,7 @@ class ProductServiceTest {
     @Test
     void 예약을_확정하면_재고와_예약_수량이_차감되고_예약_상태가_CONFIRMED가_된다() {
         // given
-        // 상품1 재고 10개 중 2개 예약
+        // 상품1 재고 100개 중 1개 예약
         ProductReserveCommand reserveCommand = new ProductReserveCommand("request-1", List.of(
                 new ProductReserveCommand.ReserveItem(product1.getId(), 1L)
         ));
@@ -104,5 +105,33 @@ class ProductServiceTest {
         assertThat(productReservationRepository.findAllByRequestId("request-1"))
                 .hasSize(1)
                 .allMatch(reservation -> reservation.getStatus() == ProductReservation.ProductReservationStatus.CONFIRMED);
+    }
+
+    @Test
+    void 확정_전에_예약을_취소하면_예약_수량이_원상복구되고_예약_상태가_CANCELED가_된다() {
+        // given
+        // 상품1 재고 100개 중 2개 예약
+        ProductReserveCommand reserveCommand = new ProductReserveCommand("request-1", List.of(
+                new ProductReserveCommand.ReserveItem(product1.getId(), 2L)
+        ));
+        productFacadeService.tryReserve(reserveCommand);
+
+        // 취소 전: 재고는 그대로, 예약 수량만 2 증가
+        Product reserved = productRepository.findById(product1.getId()).orElseThrow();
+        assertThat(reserved.getQuantity()).isEqualTo(100L);
+        assertThat(reserved.getReservedQuantity()).isEqualTo(2L);
+
+        // when
+        ProductReserveCancelCommand cancelCommand = new ProductReserveCancelCommand("request-1");
+        productFacadeService.cancelResolved(cancelCommand);
+
+        // then
+        Product product = productRepository.findById(product1.getId()).orElseThrow();
+        assertThat(product.getQuantity()).isEqualTo(100L); // 재고는 차감되지 않음
+        assertThat(product.getReservedQuantity()).isZero(); // 예약 수량 원상복구
+
+        assertThat(productReservationRepository.findAllByRequestId("request-1"))
+                .hasSize(1)
+                .allMatch(reservation -> reservation.getStatus() == ProductReservation.ProductReservationStatus.CANCELED);
     }
 }
