@@ -12,22 +12,30 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/points")
+@RequestMapping()
 public class PointController {
 
     private final PointFacadeService pointFacadeService;
 
-    @PostMapping("/reserve")
-    public void reserve(@RequestBody PointReserveRequest request) {
+    int count = 0;
+
+    @PostMapping("/points/reserve")
+    public void reserve(@RequestBody PointReserveRequest request) throws InterruptedException {
+        System.out.println("진입!!");
+        if(count%2==0){
+            count++;
+            Thread.sleep(2000);
+        }
+
         pointFacadeService.tryReserve(request.toPointReserveCommand());
     }
 
-    @PostMapping("/confirm")
+    @PostMapping("/points/confirm")
     public void confirm(@RequestBody PointReserveConfirmRequest request) {
         pointFacadeService.confirmReserve(request.toPointReserveConfirmCommand());
     }
 
-    @PostMapping("/cancel")
+    @PostMapping("/points/cancel")
     public void cancel(@RequestBody PointReserveCancelRequest request) {
         pointFacadeService.cancelReserve(request.toPointReserveCancelCommand());
     }
