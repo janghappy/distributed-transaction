@@ -32,4 +32,8 @@ public class Point {
         this.userId = userId;
         this.amount = amount;
     }
+
+    public void cancel(long amount){
+        this.amount += amount;
+    }
 }

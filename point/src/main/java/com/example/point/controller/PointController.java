@@ -2,6 +2,8 @@ package com.example.point.controller;
 
 import com.example.point.application.PointService;
 import com.example.point.application.RedisLockService;
+import com.example.point.application.dto.PointCancelCommand;
+import com.example.point.controller.dto.PointCancelRequest;
 import com.example.point.controller.dto.PointUseRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,23 @@ public class PointController {
 
         try {
             pointService.use(request.toCommand());
+        } finally {
+            redisLockService.releaseLock(lockKey);
+        }
+    }
+
+    @PostMapping("/point/cancel")
+    public void cancel(@RequestBody @Valid PointCancelRequest request) {
+        String lockKey = "point:orchestration:" + request.requestId();
+
+        boolean lockAcquired = redisLockService.tryLock(lockKey, request.requestId());
+
+        if (!lockAcquired) {
+            throw new RuntimeException("락 획득에 실패하였습니다.");
+        }
+
+        try {
+            pointService.cancel(request.toCommand());
         } finally {
             redisLockService.releaseLock(lockKey);
         }
