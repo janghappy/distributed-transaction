@@ -19,6 +19,9 @@ public class Product {
     private Long quantity;
     private Long price;
 
+    @Version
+    private Integer version;
+
     public Product(Long price, Long quantity) {
         this.price = price;
         this.quantity = quantity;
