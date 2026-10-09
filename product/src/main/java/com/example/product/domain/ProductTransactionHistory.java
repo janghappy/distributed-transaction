@@ -3,13 +3,13 @@ package com.example.product.domain;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
 @Table(name = "product_transaction_histories")
 @Entity
 @Getter
 @Setter
+@NoArgsConstructor
 public class ProductTransactionHistory {
 
     @Id
