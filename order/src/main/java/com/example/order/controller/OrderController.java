@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderService orderService;
-    private final OrderCoordinator orderCoordinator;
     private final RedisLockService redisLockService;
 
     @PostMapping("/order")
@@ -37,7 +36,7 @@ public class OrderController {
         }
 
         try {
-            orderCoordinator.placeOrder(request.toCommand());
+            orderService.placeOrder(request.toCommand());
         } finally {
             redisLockService.releaseLock(key);
         }
