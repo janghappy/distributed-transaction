@@ -52,6 +52,8 @@ public class OrderCoordinator {
             }
 
             orderService.fail(orderId);
+
+            throw e;
         }
     }
 }
