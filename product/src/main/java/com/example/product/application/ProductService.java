@@ -69,7 +69,7 @@ public class ProductService {
         );
 
         if (buyHistories.isEmpty()) {
-            throw new RuntimeException("구매이력이 존재하지 않습니다.");
+            return new ProductBuyCancelResult(0L);
         }
 
         List<ProductTransactionHistory> cancelHistories = productTransactionHistoryRepository.findAllByRequestIdAndTransactionType(
