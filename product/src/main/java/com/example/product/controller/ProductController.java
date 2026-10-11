@@ -40,7 +40,7 @@ public class ProductController {
     }
 
 
-    @PostMapping("/product/cancel")
+    @PostMapping("/product/buy/cancel")
     public ProductBuyCancelResponse cancel(@RequestBody ProductBuyCancelRequest request){
         String lockKey = "product:orchestration:" + request.requestId();
 

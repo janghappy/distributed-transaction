@@ -35,7 +35,7 @@ public class PointController {
         }
     }
 
-    @PostMapping("/point/cancel")
+    @PostMapping("/point/use/cancel")
     public void cancel(@RequestBody @Valid PointCancelRequest request) {
         String lockKey = "point:orchestration:" + request.requestId();
 
