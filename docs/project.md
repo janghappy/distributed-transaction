@@ -32,7 +32,6 @@
 | Framework | Spring Boot 3.5.3 (Spring Data JPA) |
 | Database | MySQL (Docker) |
 | Lock | Redis (WSL 로컬 설치, Spring Data Redis) |
-| Retry | Spring Retry (`@Retryable`) — orchestration용 API 클라이언트 |
 | Messaging | Apache Kafka (Docker, Spring for Apache Kafka) |
 | Build | Gradle (Kotlin DSL) |
 
@@ -67,10 +66,6 @@ distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그�
         ├── domain             # Point, PointTransactionHistory(사용·취소 이력)
         └── init               # TestDataCreator (기동 시 기본 포인트 데이터)
 ```
-
-> `saga-orchestration` 브랜치에서 시작했기 때문에 orchestration용 코드도 남아 있다.
-> 해당 코드는 order의 `OrderCoordinator`·`ProductApiClient`·`PointApiClient`·`CompensationRegistry`, product·point의 HTTP API(`/product/buy`, `/point/use` 등)이다.
-> Choreography 흐름(`/order/place`)에서는 사용하지 않는다.
 
 ## 실행 방법
 

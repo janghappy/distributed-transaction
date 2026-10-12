@@ -2,7 +2,6 @@ package com.example.order.application;
 
 import com.example.order.application.dto.CreateOrderCommand;
 import com.example.order.application.dto.CreateOrderResult;
-import com.example.order.application.dto.OrderDto;
 import com.example.order.application.dto.PlaceOrderCommand;
 import com.example.order.domain.Order;
 import com.example.order.domain.OrderItem;
@@ -60,23 +59,6 @@ public class OrderService {
                 );
             }
         });
-    }
-
-    public OrderDto getOrder(Long orderId) {
-        List<OrderItem> orderItems = orderItemRepository.findAllByOrderId(orderId);
-
-        return new OrderDto(
-                orderItems.stream()
-                        .map((OrderItem item) -> new OrderDto.OrderItem(item.getProductId(), item.getQuantity()))
-                        .toList()
-        );
-    }
-
-    @Transactional
-    public void request(Long orderId) {
-        Order order = orderRepository.findById(orderId).orElseThrow();
-
-        order.request();
     }
 
     @Transactional
