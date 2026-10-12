@@ -6,16 +6,19 @@
 이 브랜치(`saga-choreography`)는 마지막 단계인 **SAGA Choreography** 구현이다. 이 문서에서 세 패턴을 최종 정리한다.
 
 - 프로젝트 목적·요구사항·기술 스펙·모듈 구조·실행 방법은 [프로젝트 설명](docs/project.md)에 정리했다.
-- 패턴 개념(TCC, SAGA, Choreography vs Orchestration, 실무에서의 선택)은 `main` 브랜치의 [분산 트랜잭션 패턴 정리](../../blob/main/docs/concepts.md)에 있다.
+- 패턴 개념(TCC, SAGA, Choreography vs Orchestration, 실무에서의 선택)은 [분산 트랜잭션 패턴 정리](docs/concepts.md)에 있다.
+- 날짜별 진행 내용은 [학습 기록](docs/study-log.md)에 있다.
 
 ## 브랜치 구성
 
+모놀리식 주문 시스템(`monolithic` 모듈)과 MSA 토대(order·product·point 모듈 분리)는 모든 브랜치에 포함되어 있다.
+별도로 두었던 `main` 브랜치는 삭제했고, 이 브랜치를 기본 브랜치로 사용한다.
+
 | 브랜치 | 패턴 | 흐름 제어 | 통신 |
 |---|---|---|---|
-| [`main`](../../tree/main) | 모놀리식 · MSA 토대 + 학습 정리 문서 | 단일 `@Transactional` | — |
 | [`tcc`](../../tree/tcc) | TCC (Try-Confirm-Cancel) | order의 코디네이터 (중앙 제어) | 동기 HTTP |
 | [`saga-orchestration`](../../tree/saga-orchestration) | SAGA — Orchestration | order의 오케스트레이터 (중앙 제어) | 동기 HTTP |
-| **`saga-choreography`** (이 브랜치) | SAGA — Choreography | 각 서비스가 이벤트를 발행·구독 (분산 제어) | 비동기 메시지 (Kafka) |
+| **`saga-choreography`** (이 브랜치, 기본 브랜치) | SAGA — Choreography | 각 서비스가 이벤트를 발행·구독 (분산 제어) | 비동기 메시지 (Kafka) |
 
 ## 3가지 패턴 요약
 
