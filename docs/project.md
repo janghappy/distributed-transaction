@@ -11,7 +11,7 @@
 - 모놀리식 주문 시스템 구현 → 트랜잭션·동시성 문제 확인
 - **2PC (Two-Phase Commit)** 적용
 - **TCC (Try-Confirm-Cancel)** 적용 (`tcc` 브랜치)
-- **SAGA** 적용 — Orchestration 방식(`saga-orchestration` 브랜치), Choreography 방식(다음 브랜치)
+- **SAGA** 적용 — Orchestration 방식(`saga-orchestration` 브랜치), Choreography 방식(`saga-choreography` 브랜치, 이 브랜치)
 
 ## 기능
 
@@ -32,7 +32,8 @@
 | Framework | Spring Boot 3.5.3 (Spring Data JPA) |
 | Database | MySQL (Docker) |
 | Lock | Redis (WSL 로컬 설치, Spring Data Redis) |
-| Retry | Spring Retry (`@Retryable`) |
+| Retry | Spring Retry (`@Retryable`) — orchestration용 API 클라이언트 |
+| Messaging | Apache Kafka (Docker, Spring for Apache Kafka) |
 | Build | Gradle (Kotlin DSL) |
 
 ## 프로젝트 구조
@@ -44,26 +45,32 @@ distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그�
 │       ├── application        # OrderService, ProductService, PointService
 │       ├── infrastructure     # JPA Repository
 │       └── product/domain     # Order, OrderItem, Product, Point 엔티티
-├── order                      # 주문 서비스 (port 8080) — SAGA 오케스트레이터
+├── order                      # 주문 서비스 (port 8080) — 주문 이벤트 발행, 결과 이벤트 구독
 │   └── src/main/java/com/example/order
-│       ├── controller         # OrderController (POST /order, /order/place)
-│       ├── application        # OrderCoordinator(오케스트레이션·보상), OrderService(주문 생성·상태 변경)
-│       ├── infrastructure     # JPA Repository, ProductApiClient·PointApiClient (RestClient + @Retryable)
-│       ├── config             # ApiClientConfig (API 클라이언트 빈)
-│       └── domain             # Order, OrderItem, CompensationRegistry(보상 실패 기록)
+│       ├── controller         # OrderController (POST /order, /order/place, GET /order/{id}/status)
+│       ├── application        # OrderService(주문 생성·처리·상태 변경·조회)
+│       ├── consumer           # PointUsedConsumer(→ COMPLETED), QuantityDecreasedFailConsumer(→ FAILED)
+│       ├── infrastructure     # JPA Repository, kafka/OrderPlaceProducer(order-placed 발행)
+│       └── domain             # Order, OrderItem
 ├── product                    # 상품 서비스 (port 8081) — SAGA 참여자
 │   └── src/main/java/com/example/product
-│       ├── controller         # ProductController (POST /product/buy, /product/buy/cancel)
+│       ├── consumer           # OrderPlacedConsumer(재고 차감), PointUseFailConsumer(재고 원복)
 │       ├── application        # ProductService(재고 차감·차감 취소)
+│       ├── infrastructure     # JPA Repository, kafka/QuantityDecreasedProducer·QuantityDecreasedFailProducer
 │       ├── domain             # Product, ProductTransactionHistory(구매·취소 이력)
 │       └── init               # TestDataCreator (기동 시 기본 상품 데이터)
 └── point                      # 포인트 서비스 (port 8083) — SAGA 참여자
     └── src/main/java/com/example/point
-        ├── controller         # PointController (POST /point/use, /point/use/cancel)
+        ├── consumer           # QuantityDecreasedConsumer(포인트 차감)
         ├── application        # PointService(포인트 차감·차감 취소)
+        ├── infrastructure     # JPA Repository, kafka/PointUsedProducer·PointUseFailProducer
         ├── domain             # Point, PointTransactionHistory(사용·취소 이력)
         └── init               # TestDataCreator (기동 시 기본 포인트 데이터)
 ```
+
+> `saga-orchestration` 브랜치에서 시작했기 때문에 orchestration용 코드도 남아 있다.
+> 해당 코드는 order의 `OrderCoordinator`·`ProductApiClient`·`PointApiClient`·`CompensationRegistry`, product·point의 HTTP API(`/product/buy`, `/point/use` 등)이다.
+> Choreography 흐름(`/order/place`)에서는 사용하지 않는다.
 
 ## 실행 방법
 
@@ -73,7 +80,7 @@ distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그�
 docker run -d -p 3306:3306 -e MYSQL_ROOT_PASSWORD=1234 --name mysql mysql
 ```
 
-### 2. Redis 실행
+### 2. Redis·Kafka 실행
 
 주문 중복 처리를 막는 락에 사용한다. 기본 접속 정보(`localhost:6379`)를 쓰므로 별도 설정은 필요 없다.
 WSL에 설치한 Redis(systemd 서비스)를 사용한다.
@@ -86,6 +93,8 @@ redis-cli ping                       # PONG 이면 정상
 
 > Docker로 Redis를 띄우지 않는다. WSL Redis가 이미 6379 포트를 쓰고 있어서,
 > Docker 컨테이너를 함께 띄우면 포트가 연결되지 않고 컨테이너 안에서만 동작한다.
+
+Kafka는 Docker 컨테이너(`localhost:9092`)로 실행한다. 토픽은 첫 발행 시 자동 생성된다.
 
 ### 3. 설정 파일
 
@@ -133,36 +142,60 @@ redis-cli ping                       # PONG 이면 정상
 |---|---|
 | `포인트가_부족하면_재고_차감도_롤백된다` | 재고 차감 후 포인트 사용에서 실패 → 재고·포인트·주문 상태가 모두 원래대로 돌아온다. |
 
-## SAGA Orchestration 구현 상세
+## SAGA Choreography 구현 상세
+
+주문 흐름과 토픽별 발행·구독은 [README](../README.md#이-브랜치의-choreography-구현)에 정리했다. 여기서는 구현 세부 사항을 다룬다.
 
 ### 서비스 구성과 API
 
-| 서비스 | 포트 | 역할 | API |
+| 서비스 | 포트 | 역할 | API / 토픽 |
 |---|---|---|---|
-| order | 8080 | 오케스트레이터 | `POST /order` (주문 생성, 응답 `orderId`), `POST /order/place` (주문 처리) |
-| product | 8081 | 참여자 | `POST /product/buy` (재고 차감, 응답 `totalPrice`), `POST /product/buy/cancel` (재고 차감 취소, 응답 `totalPrice`) |
-| point | 8083 | 참여자 | `POST /point/use` (포인트 차감), `POST /point/use/cancel` (포인트 차감 취소) |
+| order | 8080 | 주문 시작·결과 반영 | `POST /order` (주문 생성, 응답 `orderId`), `POST /order/place` (주문 처리 → `order-placed` 발행), `GET /order/{id}/status` (주문 상태 조회) / 구독: `point-used`, `quantity-decreased-fail` |
+| product | 8081 | 참여자 | 구독: `order-placed`, `point-use-fail` / 발행: `quantity-decreased`, `quantity-decreased-fail` |
+| point | 8083 | 참여자 | 구독: `quantity-decreased` / 발행: `point-used`, `point-use-fail` |
 
-참여자 API는 모두 `requestId`를 받는다. 오케스트레이터는 주문 ID를 `requestId`로 보낸다.
+이벤트 DTO는 서비스마다 따로 두고(패키지가 다름), 필드 이름으로만 맞춘다.
 
-- `POST /product/buy`: `{requestId, productInfos: [{productId, quantity}]}`
-- `POST /point/use`: `{requestId, userId, amount}` (`@Valid` 검증)
-- 취소 API: `{requestId}`
+| 이벤트 | 필드 |
+|---|---|
+| `OrderPlacedEvent` | `orderId`, `productInfos: [{productId, quantity}]` |
+| `QuantityDecreasedEvent` | `orderId`, `totalPrice` |
+| `QuantityDecreasedFailEvent`, `PointUsedEvent`, `PointUseFailEvent` | `orderId` |
+
+### Kafka 설정 (`application.yaml`)
+
+```yaml
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.use.type.headers: false   # 보낸 쪽 클래스명(타입 헤더)을 쓰지 않음
+        spring.json.trusted.packages: "*"
+```
+
+- 받을 타입은 각 `@KafkaListener`의 `properties`에 `spring.json.value.default.type = <이벤트 클래스>`로 지정한다.
+- 메시지 키는 `orderId`라서 같은 주문의 이벤트는 같은 파티션에 순서대로 쌓인다.
 
 ### 멱등성과 동시성
 
 | 대상 | 방법 |
 |---|---|
-| 같은 주문 동시 처리 | order의 Redis 락 `order:orchestration:{orderId}`. 이미 처리된 주문은 `Order.request()`의 상태 검사(`CREATED`에서만 가능)에서 걸러진다. |
-| 같은 요청 동시 처리 | product·point의 Redis 락 `product:orchestration:{requestId}`, `point:orchestration:{requestId}` |
-| 중복 실행 | 같은 `requestId`의 구매(`PURCHASE`)·사용(`USE`) 이력이 있으면 다시 차감하지 않는다 (product는 기존 금액 반환). |
-| 중복 보상 | 같은 `requestId`의 취소(`CANCEL`) 이력이 있으면 다시 원복하지 않는다. |
+| 같은 주문 동시 처리 | order의 Redis 락 `order:choreography:{orderId}`. 이미 처리된 주문은 `Order.request()`의 상태 검사(`CREATED`에서만 가능)에서 걸러진다. |
+| 이벤트 중복 수신 (참여자) | `orderId`를 `requestId`로 사용한다. 같은 `requestId`의 차감(`PURCHASE`·`USE`)·취소(`CANCEL`) 이력이 있으면 다시 처리하지 않는다. |
+| 이벤트 중복 수신 (order) | 별도 처리 없음 (강의 범위 밖). `Order.fail()`은 `REQUESTED`에서만 가능해서 중복 실패 이벤트는 예외로 거절된다. |
 
-### 재시도
+### 실패 처리와 재시도
 
-order의 `ProductApiClient`·`PointApiClient`는 모든 호출(실행·보상)에 Spring Retry `@Retryable`을 적용했다.
-예외가 나면 500ms 간격으로 최대 3회 시도한다(`OrderApplication`에 `@EnableRetry`).
-참여자가 같은 `requestId`로 중복 요청을 걸러 주므로, 재시도로 같은 요청이 두 번 도착해도 한 번만 처리된다.
+- consumer는 실패하면 자기 작업을 취소하고 실패 이벤트를 발행한 뒤 **정상 종료**한다(예외를 다시 던지지 않음).
+  - 예외를 다시 던지면 Kafka `DefaultErrorHandler`가 같은 메시지를 최대 10번(처음 1회 + 재시도 9회) 다시 처리한다.
+  - 그러면 실패 이벤트가 그만큼 중복 발행된다(실제 확인: 실패 1건에 `point-use-fail`·`quantity-decreased-fail` 각 10건).
+- 실행 이력이 없는 취소 요청은 예외 없이 반환하므로, 어느 단계에서 실패했든 취소를 호출할 수 있다.
+- order는 `REQUESTED` 상태 변경을 커밋한 뒤(`afterCommit`) `order-placed`를 발행한다. 그래서 DB에는 없는 주문 요청 이벤트가 나가지 않는다.
 
 ### 실행
 
@@ -174,4 +207,5 @@ order의 `ProductApiClient`·`PointApiClient`는 모든 호출(실행·보상)�
 curl -X POST localhost:8080/order -H 'Content-Type: application/json' \
   -d '{"items":[{"productId":1,"quantity":1},{"productId":2,"quantity":1}]}'   # → {"orderId":1}
 curl -X POST localhost:8080/order/place -H 'Content-Type: application/json' -d '{"orderId":1}'
+curl localhost:8080/order/1/status    # 비동기 처리라 잠시 후 COMPLETED / FAILED
 ```
