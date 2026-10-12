@@ -1,6 +1,7 @@
 package com.example.point.infrastructure.kafka;
 
-import com.example.point.infrastructure.kafka.dto.PointUseFailEvent;
+import com.example.event.PointUseFailEvent;
+import com.example.event.Topics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ public class PointUseFailProducer {
 
     public void send(PointUseFailEvent event){
         kafkaTemplate.send(
-                "point-use-fail",
+                Topics.POINT_USE_FAIL,
                 event.orderId().toString(),
                 event
         );

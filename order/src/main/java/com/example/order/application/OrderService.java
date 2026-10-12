@@ -1,5 +1,6 @@
 package com.example.order.application;
 
+import com.example.event.OrderPlacedEvent;
 import com.example.order.application.dto.CreateOrderCommand;
 import com.example.order.application.dto.CreateOrderResult;
 import com.example.order.application.dto.PlaceOrderCommand;
@@ -8,7 +9,6 @@ import com.example.order.domain.OrderItem;
 import com.example.order.infrastructure.OrderItemRepository;
 import com.example.order.infrastructure.OrderRepository;
 import com.example.order.infrastructure.kafka.OrderPlaceProducer;
-import com.example.order.infrastructure.kafka.dto.OrderPlacedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

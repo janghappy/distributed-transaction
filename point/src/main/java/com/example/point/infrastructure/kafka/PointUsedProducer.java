@@ -1,6 +1,7 @@
 package com.example.point.infrastructure.kafka;
 
-import com.example.point.infrastructure.kafka.dto.PointUsedEvent;
+import com.example.event.PointUsedEvent;
+import com.example.event.Topics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ public class PointUsedProducer {
 
     public void send(PointUsedEvent event){
         kafkaTemplate.send(
-                "point-used",
+                Topics.POINT_USED,
                 event.orderId().toString(),
                 event
         );

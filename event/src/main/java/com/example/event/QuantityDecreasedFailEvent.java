@@ -1,4 +1,4 @@
-package com.example.product.infrastructure.kafka.dto;
+package com.example.event;
 
 public record QuantityDecreasedFailEvent(Long orderId) {
 }

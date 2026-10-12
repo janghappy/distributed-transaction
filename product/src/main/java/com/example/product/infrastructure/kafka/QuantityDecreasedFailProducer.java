@@ -1,6 +1,7 @@
 package com.example.product.infrastructure.kafka;
 
-import com.example.product.infrastructure.kafka.dto.QuantityDecreasedFailEvent;
+import com.example.event.QuantityDecreasedFailEvent;
+import com.example.event.Topics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ public class QuantityDecreasedFailProducer {
 
     public void send(QuantityDecreasedFailEvent event){
         kafkaTemplate.send(
-                "quantity-decreased-fail",
+                Topics.QUANTITY_DECREASED_FAIL,
                 event.orderId().toString(),
                 event
         );

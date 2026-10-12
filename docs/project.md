@@ -39,6 +39,10 @@
 
 ```
 distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그인 버전 관리)
+├── event                      # 공유 이벤트 계약 (순수 Java 라이브러리, order·product·point가 의존)
+│   └── src/main/java/com/example/event
+│       ├── Topics             # 토픽 이름 상수
+│       └── *Event             # OrderPlacedEvent, QuantityDecreasedEvent, QuantityDecreasedFailEvent, PointUsedEvent, PointUseFailEvent
 ├── monolithic                 # 모놀리식 주문 시스템
 │   └── src/main/java/com/example/monolithic
 │       ├── application        # OrderService, ProductService, PointService
@@ -48,11 +52,13 @@ distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그�
 │   └── src/main/java/com/example/order
 │       ├── controller         # OrderController (POST /order, /order/place, GET /order/{id}/status)
 │       ├── application        # OrderService(주문 생성·처리·상태 변경·조회)
+│       ├── config             # KafkaConfig (JsonMessageConverter)
 │       ├── consumer           # PointUsedConsumer(→ COMPLETED), QuantityDecreasedFailConsumer(→ FAILED)
 │       ├── infrastructure     # JPA Repository, kafka/OrderPlaceProducer(order-placed 발행)
 │       └── domain             # Order, OrderItem
 ├── product                    # 상품 서비스 (port 8081) — SAGA 참여자
 │   └── src/main/java/com/example/product
+│       ├── config             # KafkaConfig
 │       ├── consumer           # OrderPlacedConsumer(재고 차감), PointUseFailConsumer(재고 원복)
 │       ├── application        # ProductService(재고 차감·차감 취소)
 │       ├── infrastructure     # JPA Repository, kafka/QuantityDecreasedProducer·QuantityDecreasedFailProducer
@@ -60,6 +66,7 @@ distributed-transaction        # Gradle 멀티 모듈 루트 (공통 플러그�
 │       └── init               # TestDataCreator (기동 시 기본 상품 데이터)
 └── point                      # 포인트 서비스 (port 8083) — SAGA 참여자
     └── src/main/java/com/example/point
+        ├── config             # KafkaConfig
         ├── consumer           # QuantityDecreasedConsumer(포인트 차감)
         ├── application        # PointService(포인트 차감·차감 취소)
         ├── infrastructure     # JPA Repository, kafka/PointUsedProducer·PointUseFailProducer
@@ -149,7 +156,11 @@ Kafka는 Docker 컨테이너(`localhost:9092`)로 실행한다. 토픽은 첫 �
 | product | 8081 | 참여자 | 구독: `order-placed`, `point-use-fail` / 발행: `quantity-decreased`, `quantity-decreased-fail` |
 | point | 8083 | 참여자 | 구독: `quantity-decreased` / 발행: `point-used`, `point-use-fail` |
 
-이벤트 DTO는 서비스마다 따로 두고(패키지가 다름), 필드 이름으로만 맞춘다.
+이벤트 record와 토픽 이름은 공유 모듈 `event`(`com.example.event`)에 한 번만 정의하고, 프로듀서와 컨슈머가 같은 클래스·상수를 쓴다.
+처음에는 서비스마다 같은 모양의 record를 따로 두고 토픽 이름도 문자열로 적었는데, 한쪽만 바뀌거나 오타가 나면 실행 중에야 드러나서 하나로 모았다.
+
+> 트레이드오프: 공유 모듈을 바꾸면 의존하는 서비스를 함께 빌드·배포해야 한다(서비스 간 결합).
+> 실무에서는 스키마 레지스트리(Avro·Protobuf)나 계약 테스트로 포맷을 맞추는 방식도 쓴다.
 
 | 이벤트 | 필드 |
 |---|---|

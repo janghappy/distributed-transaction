@@ -1,13 +1,14 @@
 package com.example.point.consumer;
 
+import com.example.event.PointUseFailEvent;
+import com.example.event.PointUsedEvent;
+import com.example.event.QuantityDecreasedEvent;
+import com.example.event.Topics;
 import com.example.point.application.PointService;
 import com.example.point.application.dto.PointCancelCommand;
 import com.example.point.application.dto.PointUseCommand;
-import com.example.point.consumer.dto.QuantityDecreasedEvent;
-import com.example.point.infrastructure.kafka.PointUsedProducer;
 import com.example.point.infrastructure.kafka.PointUseFailProducer;
-import com.example.point.infrastructure.kafka.dto.PointUseFailEvent;
-import com.example.point.infrastructure.kafka.dto.PointUsedEvent;
+import com.example.point.infrastructure.kafka.PointUsedProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -21,7 +22,7 @@ public class QuantityDecreasedConsumer {
     private final PointUseFailProducer pointUseFailProducer;
 
     @KafkaListener(
-            topics = "quantity-decreased",
+            topics = Topics.QUANTITY_DECREASED,
             groupId = "quantity-decreased-consumer"
     )
     public void handle(QuantityDecreasedEvent event){

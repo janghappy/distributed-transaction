@@ -1,6 +1,7 @@
 package com.example.product.infrastructure.kafka;
 
-import com.example.product.infrastructure.kafka.dto.QuantityDecreasedEvent;
+import com.example.event.QuantityDecreasedEvent;
+import com.example.event.Topics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ public class QuantityDecreasedProducer {
 
     public void send(QuantityDecreasedEvent event){
         kafkaTemplate.send(
-                "quantity-decreased",
+                Topics.QUANTITY_DECREASED,
                 event.orderId().toString(),
                 event
         );

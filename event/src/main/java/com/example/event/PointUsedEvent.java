@@ -1,4 +1,4 @@
-package com.example.order.consumer.dto;
+package com.example.event;
 
 public record PointUsedEvent(Long orderId) {
 }

@@ -1,6 +1,7 @@
 package com.example.order.infrastructure.kafka;
 
-import com.example.order.infrastructure.kafka.dto.OrderPlacedEvent;
+import com.example.event.OrderPlacedEvent;
+import com.example.event.Topics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ public class OrderPlaceProducer {
 
     public void send(OrderPlacedEvent event) {
         kafkaTemplate.send(
-                "order-placed",
+                Topics.ORDER_PLACED,
                 event.orderId().toString(),
                 event
         );
