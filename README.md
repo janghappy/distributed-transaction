@@ -4,33 +4,21 @@
 이 브랜치(`saga-orchestration`)에서는 **SAGA 패턴의 Orchestration 방식**으로 분산 트랜잭션을 구현·테스트한다.
 
 - 프로젝트 목적·요구사항·기술 스펙·모듈 구조·실행 방법, 구현 상세(API, 멱등성·동시성, 재시도)는 [프로젝트 설명](docs/project.md)에 정리했다.
-- TCC 패턴은 `tcc` 브랜치에서 다룬다.
+- TCC·SAGA Orchestration·SAGA Choreography 세 패턴의 최종 비교는 [`saga-choreography`](../../tree/saga-choreography) 브랜치에 있고, TCC 구현은 [`tcc`](../../tree/tcc) 브랜치에 있다.
 
 ## SAGA란
 
-여러 서비스의 **로컬 트랜잭션을 순차적으로 실행**하고, 중간에 실패하면 이미 완료한 작업을
-**보상 트랜잭션(compensating transaction)** 으로 되돌리는 분산 트랜잭션 패턴이다.
-각 서비스의 DB 트랜잭션은 독립적으로 바로 커밋되므로, 전체를 하나의 DB 트랜잭션으로 묶지 않는다.
+- 각 작업을 **개별 로컬 트랜잭션**으로 나누어 처리하고, 실패하면 이미 완료한 작업을 **보상 트랜잭션(compensating transaction)** 으로 되돌려 정합성을 맞춘다.
+- 리소스를 예약하지 않고 **즉시 차감**한다. 각 서비스의 DB 트랜잭션은 바로 커밋되므로, 보상이 끝나기 전까지는 일시적으로 불일치가 보일 수 있고 최종적으로 일관성을 맞춘다(**eventual consistency**).
 
-SAGA는 각 단계를 누가 이어 주느냐에 따라 두 가지 방식으로 나뉜다.
+### Orchestration 방식
 
-| 방식 | 흐름 제어 | 이 저장소 |
-|---|---|---|
-| **Orchestration** | 오케스트레이터가 각 서비스에 순서대로 요청하고, 실패 시 보상을 지시한다 (중앙 제어) | `saga-orchestration` 브랜치 (이 문서) |
-| Choreography | 각 서비스가 이벤트를 발행·구독하며 다음 단계를 이어 간다 (분산 제어) | 다음 브랜치에서 진행 |
-
-## TCC와의 차이 (이 저장소 기준)
-
-| 구분 | TCC (`tcc` 브랜치) | SAGA Orchestration (이 브랜치) |
-|---|---|---|
-| 참여자 API | Try / Confirm / Cancel 3단계 | 실행(buy·use) / 보상(cancel) 2단계 |
-| 자원 처리 | Try에서 **예약**만 하고 Confirm에서 실제 차감 | 실행 단계에서 **바로 차감**, 실패 시 보상으로 원복 |
-| 중간 상태 | 예약 수량·금액으로 다른 요청과 분리됨 | 차감된 상태가 다른 요청에 바로 보임 (일시적 불일치) |
-| 참여자 데이터 | 예약 테이블 (`RESERVED`/`CONFIRMED`/`CANCELED`) | 거래 이력 테이블 (`PURCHASE`·`USE` / `CANCEL`) |
+- **코디네이터(오케스트레이터)** 가 각 참여자를 순차적으로 호출하면서 전체 트랜잭션의 흐름을 제어하고, 실패 시 보상을 지시한다.
+- 흐름이 코디네이터 한 곳에 모여 있어 **흐름 파악이 쉽다**는 장점이 있어 **실무에서 많이 사용**된다.
 
 ## 이 브랜치의 Orchestration 구현
 
-order 서비스의 `OrderCoordinator`가 오케스트레이터로서 product(재고)·point(포인트) 서비스를 순서대로 호출하고, 실패하면 보상 트랜잭션을 지시한다.
+order 서비스의 `OrderCoordinator`가 오케스트레이터로서 product(재고)·point(포인트) 서비스를 동기 HTTP(RestClient)로 순서대로 호출하고, 실패하면 보상 트랜잭션을 지시한다.
 API·락·재시도 등 구현 상세는 [SAGA Orchestration 구현 상세](docs/project.md#saga-orchestration-구현-상세)를 참고한다.
 
 ### 주문 처리 흐름 (`POST /order/place`)
@@ -50,7 +38,31 @@ OrderController
            └ 보상 자체가 실패하면 CompensationRegistry(PENDING)에 주문 기록 후 예외 전달
 ```
 
+```mermaid
+sequenceDiagram
+    participant O as order (Coordinator)
+    participant PR as product
+    participant PT as point
+
+    Note over O: 주문 REQUESTED
+    O->>PR: POST /product/buy (재고 차감)
+    PR-->>O: totalPrice
+    O->>PT: POST /point/use (포인트 차감)
+    alt 성공
+        Note over O: 주문 COMPLETED
+    else 실패 → rollback (보상 트랜잭션)
+        O->>PR: POST /product/buy/cancel (재고 원복)
+        PR-->>O: 취소 금액
+        opt 취소 금액 > 0
+            O->>PT: POST /point/use/cancel (포인트 원복)
+        end
+        Note over O: 주문 FAILED<br/>(보상 자체 실패 시 CompensationRegistry에 PENDING 기록)
+    end
+```
+
 주문 상태: `CREATED` → `REQUESTED` → `COMPLETED` (실패 시 `FAILED`)
+
+`/order/place`는 차감(또는 보상)까지 모두 끝난 뒤 응답한다. 실패하면 예외가 그대로 전달되어 오류 응답이 나간다.
 
 ### 보상 트랜잭션
 
@@ -65,18 +77,19 @@ OrderController
 - **보상이 실패하는 경우**도 있다(참여자 장애 등). 이때 주문을 `CompensationRegistry`(`compensation_registries`, 상태 `PENDING`)에 기록해,
   나중에 다시 보상할 수 있게 남겨 둔다.
 
-## 실패 상황 테스트
+### 실패 상황 테스트
 
 강제 예외 코드가 주석 처리된 상태로 들어 있어, 주석을 풀고 재기동하면 각 실패 상황을 재현할 수 있다.
 
 | 위치 | 재현되는 상황 | 기대 결과 |
 |---|---|---|
 | `PointService.use` 끝의 `throw new RuntimeException("강제로 예외 발생")` | 상품 차감 성공 후 포인트 차감 실패 | 재고 원복(`CANCEL` 이력), 주문 `FAILED`, 주문 API는 오류 응답 |
-| `ProductService.cancel` 끝의 `if (true) throw ...` | 보상 트랜잭션(재고 차감 취소) 실패 | `compensation_registries`에 주문이 `PENDING`으로 기록, 주문은 `REQUESTED`로 남음 |
+| `ProductService.cancel` 끝의 `if (true) throw ...` (보상이 호출되도록 위 포인트 강제 예외도 함께 해제) | 보상 트랜잭션(재고 차감 취소) 실패 | `compensation_registries`에 주문이 `PENDING`으로 기록, 주문은 `REQUESTED`로 남음 |
 
 > 포인트 차감은 강제 예외로 롤백되므로 포인트 쪽에는 사용 이력이 남지 않는다. 그래서 위 첫 번째 경우에도 포인트 취소는 이력이 없어 그냥 반환된다.
+> 두 경우 모두 API 클라이언트의 `@Retryable` 때문에 실패한 호출은 3번까지 시도된 뒤 다음 단계로 넘어간다.
 
-## 다음 단계: Choreography
+### 남은 과제
 
-다음 브랜치에서는 오케스트레이터 없이, 각 서비스가 이벤트(예: `OrderCreated` → `ProductBought` → `PointUsed`, 실패 시 취소 이벤트)를
-발행·구독해 흐름을 이어 가는 Choreography 방식을 구현하고 이 방식과 비교한다.
+- **`CompensationRegistry` 재처리 미구현:** 보상 실패 주문을 `PENDING`으로 기록만 하고, 이를 주기적으로 읽어 보상을 다시 시도하는 스케줄러는 아직 없다.
+  그래서 보상이 실패한 주문은 `REQUESTED` 상태로 남고, 이미 차감된 재고·포인트도 원복되지 않은 채 남을 수 있다.

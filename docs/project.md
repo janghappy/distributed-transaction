@@ -11,7 +11,7 @@
 - 모놀리식 주문 시스템 구현 → 트랜잭션·동시성 문제 확인
 - **2PC (Two-Phase Commit)** 적용
 - **TCC (Try-Confirm-Cancel)** 적용 (`tcc` 브랜치)
-- **SAGA** 적용 — Orchestration 방식(`saga-orchestration` 브랜치), Choreography 방식(다음 브랜치)
+- **SAGA** 적용 — Orchestration 방식(`saga-orchestration` 브랜치, 이 브랜치), Choreography 방식(`saga-choreography` 브랜치)
 
 ## 기능
 
@@ -32,6 +32,7 @@
 | Framework | Spring Boot 3.5.3 (Spring Data JPA) |
 | Database | MySQL (Docker) |
 | Lock | Redis (WSL 로컬 설치, Spring Data Redis) |
+| 서비스 간 통신 | 동기 HTTP (Spring `RestClient`) |
 | Retry | Spring Retry (`@Retryable`) |
 | Build | Gradle (Kotlin DSL) |
 
@@ -89,14 +90,19 @@ redis-cli ping                       # PONG 이면 정상
 
 ### 3. 설정 파일 생성
 
-`application.yaml`은 Git에서 관리하지 않는다(로컬 전용).
-Git에는 DB 접속 정보(url, username, password)를 비운 `application.yaml.example`만 올라가 있으므로, 복사한 뒤 접속 정보를 채운다.
+이 브랜치에서는 `application.yaml`을 Git에서 관리하지 않는다(`.gitignore`에 등록, 로컬 전용).
 
-```bash
-cp monolithic/src/main/resources/application.yaml.example \
-   monolithic/src/main/resources/application.yaml
-# url, username, password 입력
-```
+- **monolithic:** DB 접속 정보(url, username, password)를 비운 `application.yaml.example`만 올라가 있으므로, 복사한 뒤 접속 정보를 채운다.
+
+  ```bash
+  cp monolithic/src/main/resources/application.yaml.example \
+     monolithic/src/main/resources/application.yaml
+  # url, username, password 입력
+  ```
+
+- **order·product·point:** 예시 파일이 없으므로 각 모듈의 `src/main/resources/application.yaml`을 직접 만든다.
+  monolithic 예시와 같은 형식으로 DB 접속 정보를 넣고, 포트는 order 8080(기본값)·product 8081·point 8083(`server.port`)으로 맞춘다.
+  order의 API 클라이언트가 `localhost:8081`(product)·`localhost:8083`(point)으로 고정되어 있기 때문이다.
 
 ### 4. 테스트 실행
 
@@ -140,6 +146,8 @@ cp monolithic/src/main/resources/application.yaml.example \
 | `포인트가_부족하면_재고_차감도_롤백된다` | 재고 차감 후 포인트 사용에서 실패 → 재고·포인트·주문 상태가 모두 원래대로 돌아온다. |
 
 ## SAGA Orchestration 구현 상세
+
+주문 흐름과 보상 트랜잭션은 [README](../README.md#이-브랜치의-orchestration-구현)에 정리했다. 여기서는 구현 세부 사항을 다룬다.
 
 ### 서비스 구성과 API
 
