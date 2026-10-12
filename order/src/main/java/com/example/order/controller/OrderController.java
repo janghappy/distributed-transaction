@@ -26,7 +26,7 @@ public class OrderController {
 
     @PostMapping("/order/place")
     public void placeOrder(@RequestBody PlaceOrderRequest request) {
-        String key = "order:orchestration:" + request.orderId();
+        String key = "order:choreography:" + request.orderId();
 
         if (!redisLockService.tryLock(key, request.orderId().toString())) {
             throw new RuntimeException("락 획득에 실패하였습니다.");

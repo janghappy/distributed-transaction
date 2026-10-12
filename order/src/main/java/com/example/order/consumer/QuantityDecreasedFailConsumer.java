@@ -1,7 +1,7 @@
 package com.example.order.consumer;
 
 import com.example.order.application.OrderService;
-import com.example.order.consumer.dto.QuantityDecreasedEvent;
+import com.example.order.consumer.dto.QuantityDecreasedFailEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -16,10 +16,10 @@ public class QuantityDecreasedFailConsumer {
             topics = "quantity-decreased-fail",
             groupId = "quantity-decreased-fail-consumer",
             properties = {
-                    "spring.json.value.default.type = com.example.order.consumer.dto.QuantityDecreasedEvent"
+                    "spring.json.value.default.type = com.example.order.consumer.dto.QuantityDecreasedFailEvent"
             }
     )
-    public void handle(QuantityDecreasedEvent event) {
+    public void handle(QuantityDecreasedFailEvent event) {
         orderService.fail(event.orderId());
     }
 

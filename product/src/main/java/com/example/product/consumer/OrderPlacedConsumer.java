@@ -51,7 +51,6 @@ public class OrderPlacedConsumer {
         } catch (Exception e) {
             productService.cancel(new ProductBuyCancelCommand(requestId));
             quantityDecreasedFailProducer.send(new QuantityDecreasedFailEvent(event.orderId()));
-            throw new RuntimeException(e);
         }
     }
 }

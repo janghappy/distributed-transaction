@@ -36,7 +36,6 @@ public class QuantityDecreasedConsumer {
         } catch (Exception e) {
             pointService.cancel(new PointCancelCommand(requestId));
             pointUseFailProducer.send(new PointUseFailEvent(event.orderId()));
-            throw new RuntimeException(e);
         }
     }
 
