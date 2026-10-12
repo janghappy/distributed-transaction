@@ -87,16 +87,10 @@ redis-cli ping                       # PONG 이면 정상
 > Docker로 Redis를 띄우지 않는다. WSL Redis가 이미 6379 포트를 쓰고 있어서,
 > Docker 컨테이너를 함께 띄우면 포트가 연결되지 않고 컨테이너 안에서만 동작한다.
 
-### 3. 설정 파일 생성
+### 3. 설정 파일
 
-`application.yaml`은 Git에서 관리하지 않는다(로컬 전용).
-Git에는 DB 접속 정보(url, username, password)를 비운 `application.yaml.example`만 올라가 있으므로, 복사한 뒤 접속 정보를 채운다.
-
-```bash
-cp monolithic/src/main/resources/application.yaml.example \
-   monolithic/src/main/resources/application.yaml
-# url, username, password 입력
-```
+각 모듈의 `application.yaml`을 Git으로 관리한다. 접속 대상이 모두 로컬(MySQL `127.0.0.1:3306`, Redis `localhost:6379`, Kafka `localhost:9092`)이고
+학습용 계정이라 별도 설정 파일을 만들 필요 없이 그대로 실행한다.
 
 ### 4. 테스트 실행
 
