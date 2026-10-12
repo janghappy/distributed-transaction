@@ -7,11 +7,10 @@
 
 - 프로젝트 목적·요구사항·기술 스펙·모듈 구조·실행 방법은 [프로젝트 설명](docs/project.md)에 정리했다.
 - 패턴 개념(TCC, SAGA, Choreography vs Orchestration, 실무에서의 선택)은 [분산 트랜잭션 패턴 정리](docs/concepts.md)에 있다.
-- 날짜별 진행 내용은 [학습 기록](docs/study-log.md)에 있다.
 
 ## 브랜치 구성
 
-모놀리식 주문 시스템(`monolithic` 모듈)과 MSA 토대(order·product·point 모듈 분리)는 모든 브랜치에 포함되어 있다.
+모놀리식 주문 시스템(`monolithic` 모듈)은 `tcc`·`saga-orchestration` 브랜치에 있고, 이 브랜치에서는 Choreography에 필요한 order·product·point·event 모듈만 둔다.
 별도로 두었던 `main` 브랜치는 삭제했고, 이 브랜치를 기본 브랜치로 사용한다.
 
 | 브랜치 | 패턴 | 흐름 제어 | 통신 |
