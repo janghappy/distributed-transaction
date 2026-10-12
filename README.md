@@ -167,8 +167,8 @@ sequenceDiagram
 - **비동기 응답:** `POST /order/place`는 이벤트 발행 직후 응답한다. 최종 결과는 `GET /order/{id}/status`로 조회한다.
 - **실패는 이벤트로 넘기고 예외는 다시 던지지 않는다:** consumer가 보상·실패 이벤트 발행 후 예외를 다시 던지면,
   Kafka 기본 에러 핸들러(`DefaultErrorHandler`)가 같은 메시지를 최대 10번 다시 처리해 실패 이벤트가 중복 발행된다.
-- **역직렬화 타입:** 서비스마다 이벤트 클래스 패키지가 달라서 타입 헤더를 쓰지 않는다(`spring.json.use.type.headers: false`).
-  대신 `@KafkaListener`의 `spring.json.value.default.type`으로 받을 타입을 지정한다.
+- **역직렬화 타입:** consumer는 메시지를 문자열(`StringDeserializer`)로 받고, `KafkaConfig`의 `JsonMessageConverter`가 `@KafkaListener` 메서드의 파라미터 타입으로 JSON을 변환한다.
+  서비스마다 이벤트 클래스 패키지가 달라도 필드 이름만 맞으면 되고, 받을 타입을 문자열로 적지 않아 오타·클래스 이동에 안전하다.
 - **중복 주문 방지:** `POST /order/place`는 Redis 락 `order:choreography:{orderId}`로 같은 주문의 동시 처리를 막고, `Order.request()`(`CREATED`에서만 가능)로 재처리를 막는다.
 
 ### 실패 상황 테스트

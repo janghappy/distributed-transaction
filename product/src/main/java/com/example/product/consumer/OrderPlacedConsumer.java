@@ -23,10 +23,7 @@ public class OrderPlacedConsumer {
 
     @KafkaListener(
             topics = "order-placed",
-            groupId = "order-placed-consumer",
-            properties = {
-                    "spring.json.value.default.type = com.example.product.consumer.dto.OrderPlacedEvent"
-            }
+            groupId = "order-placed-consumer"
     )
     public void handle(OrderPlacedEvent event) {
         String requestId = event.orderId().toString();

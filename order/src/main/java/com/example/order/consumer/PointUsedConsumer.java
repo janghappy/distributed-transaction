@@ -14,10 +14,7 @@ public class PointUsedConsumer {
 
     @KafkaListener(
             topics = "point-used",
-            groupId = "point-used-consumer",
-            properties = {
-                    "spring.json.value.default.type = com.example.order.consumer.dto.PointUsedEvent"
-            }
+            groupId = "point-used-consumer"
     )
     public void handle(PointUsedEvent event){
         orderService.complete(event.orderId());

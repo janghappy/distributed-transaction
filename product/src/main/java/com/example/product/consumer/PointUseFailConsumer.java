@@ -18,10 +18,7 @@ public class PointUseFailConsumer {
 
     @KafkaListener(
             topics = "point-use-fail",
-            groupId = "point-use-fail-consumer",
-            properties = {
-                    "spring.json.value.default.type = com.example.product.consumer.dto.PointUseFailEvent"
-            }
+            groupId = "point-use-fail-consumer"
     )
     public void handle(PointUseFailEvent event) {
         productService.cancel(new ProductBuyCancelCommand(event.orderId().toString()));

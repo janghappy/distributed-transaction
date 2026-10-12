@@ -157,9 +157,10 @@ Kafka는 Docker 컨테이너(`localhost:9092`)로 실행한다. 토픽은 첫 �
 | `QuantityDecreasedEvent` | `orderId`, `totalPrice` |
 | `QuantityDecreasedFailEvent`, `PointUsedEvent`, `PointUseFailEvent` | `orderId` |
 
-### Kafka 설정 (`application.yaml`)
+### Kafka 설정
 
 ```yaml
+# application.yaml
 spring:
   kafka:
     bootstrap-servers: localhost:9092
@@ -167,13 +168,22 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.use.type.headers: false   # 보낸 쪽 클래스명(타입 헤더)을 쓰지 않음
-        spring.json.trusted.packages: "*"
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 ```
 
-- 받을 타입은 각 `@KafkaListener`의 `properties`에 `spring.json.value.default.type = <이벤트 클래스>`로 지정한다.
+```java
+// config/KafkaConfig (order·product·point)
+@Bean
+public RecordMessageConverter messageConverter() {
+    return new JsonMessageConverter();   // Boot가 기본 리스너 컨테이너 팩토리에 자동 적용
+}
+```
+
+- consumer는 문자열로 받고, `JsonMessageConverter`가 `@KafkaListener` 메서드의 **파라미터 타입**으로 JSON을 변환한다.
+- `JsonSerializer`가 넣는 타입 헤더(`__TypeId__`)에는 보낸 서비스의 클래스명이 들어가는데, 받는 서비스에는 그 클래스가 없다.
+  `JsonMessageConverter`는 기본으로 파라미터 타입을 우선하므로(`TypePrecedence.INFERRED`) 이 헤더를 쓰지 않는다.
+- 처음에는 리스너마다 `properties = {"spring.json.value.default.type = <클래스명>"}`으로 타입을 문자열로 지정했다.
+  실제로 존재하지 않는 클래스명을 적는 실수가 있어 이 방식으로 바꿨다(강의 코드는 문자열 방식).
 - 메시지 키는 `orderId`라서 같은 주문의 이벤트는 같은 파티션에 순서대로 쌓인다.
 
 ### 멱등성과 동시성

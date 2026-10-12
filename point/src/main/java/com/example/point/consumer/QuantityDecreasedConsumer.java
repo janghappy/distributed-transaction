@@ -22,10 +22,7 @@ public class QuantityDecreasedConsumer {
 
     @KafkaListener(
             topics = "quantity-decreased",
-            groupId = "quantity-decreased-consumer",
-            properties = {
-                    "spring.json.value.default.type = com.example.point.consumer.dto.QuantityDecreasedEvent"
-            }
+            groupId = "quantity-decreased-consumer"
     )
     public void handle(QuantityDecreasedEvent event){
         String requestId = event.orderId().toString();

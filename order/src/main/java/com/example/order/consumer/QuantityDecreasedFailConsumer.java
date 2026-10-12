@@ -14,10 +14,7 @@ public class QuantityDecreasedFailConsumer {
 
     @KafkaListener(
             topics = "quantity-decreased-fail",
-            groupId = "quantity-decreased-fail-consumer",
-            properties = {
-                    "spring.json.value.default.type = com.example.order.consumer.dto.QuantityDecreasedFailEvent"
-            }
+            groupId = "quantity-decreased-fail-consumer"
     )
     public void handle(QuantityDecreasedFailEvent event) {
         orderService.fail(event.orderId());
