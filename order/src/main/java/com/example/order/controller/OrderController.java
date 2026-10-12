@@ -1,17 +1,14 @@
 package com.example.order.controller;
 
-import com.example.order.application.OrderCoordinator;
 import com.example.order.application.OrderService;
 import com.example.order.application.RedisLockService;
 import com.example.order.application.dto.CreateOrderResult;
-import com.example.order.application.dto.PlaceOrderCommand;
 import com.example.order.controller.dto.CreateOrderRequest;
 import com.example.order.controller.dto.CreateOrderResponse;
 import com.example.order.controller.dto.PlaceOrderRequest;
+import com.example.order.domain.Order;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -40,5 +37,10 @@ public class OrderController {
         } finally {
             redisLockService.releaseLock(key);
         }
+    }
+
+    @GetMapping("/order/{id}/status")
+    public Order.OrderStatus getOrderStatus(@PathVariable Long id) {
+        return orderService.getStatus(id);
     }
 }

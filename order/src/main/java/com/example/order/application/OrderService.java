@@ -91,4 +91,10 @@ public class OrderService {
         Order order = orderRepository.findById(orderId).orElseThrow();
         order.fail();
     }
+
+    @Transactional(readOnly = true)
+    public Order.OrderStatus getStatus(Long orderId) {
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        return order.getStatus();
+    }
 }
